@@ -14,7 +14,8 @@ int main(){
 	struct sockaddr_in addr;
 
 	sockfd = socket(AF_INET,SOCK_STREAM,0);
-	if(sockfd == -1){
+	if(sockfd == -1)
+        {
 		perror("sock not created");
 		exit(0);
 	}
