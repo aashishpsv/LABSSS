@@ -38,13 +38,13 @@ int main(){
     getNextToken(arr, &idx, &r, &c, rd,&sidx,symt);
     printf("Tokens: \n");
     for(int i=0;i<idx;i++){
-        printf("<%s ,%d, %d>\n",arr[i].type,arr[i].row,arr[i].col);
+        printf("%s %d %d\n",arr[i].type,arr[i].row,arr[i].col);
     }
     printf("\n\nIdentifiers: \n");
     printf("Sno,\t Lexeme  Token Name  Return Type  Type  Arguments\n");
     for(int i=0;i<sidx;i++){
         if(strcmp(symt[i].lexemename,"\0")!=0){
-            printf("%d\t %s\t %s\t %s\t %s\t %d\n",symt[i].sno,symt[i].lexemename,symt[i].tokenname,symt[i].rettype,symt[i].type,symt[i].argno);
+            printf("%d\t %s\t %s\t\t %s\t %s\t %d\n",symt[i].sno,symt[i].lexemename,symt[i].tokenname,symt[i].rettype,symt[i].type,symt[i].argno);
         }
     }
     return 0;

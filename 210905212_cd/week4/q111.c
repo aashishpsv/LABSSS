@@ -2,76 +2,93 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#define MAXSYMBOLS 100
+
+#define MAX_HASH_SIZE 13
 
 struct token {
-    char tokenName[100];
-    int row, col;
+	char tokenName[100];
+	int row, col;
+	char type[100];
 };
 
-struct node {
-	int sno;
-    char lexemeName[100];
-    char tokentype[100];
-    char type[20];
-    int size;
-    char returntype[20];
-};
-int snum=1;
-struct node symbolTable[MAXSYMBOLS];
-int symbolCount = 0;
+typedef struct node* Nodeptr;
+typedef struct node {
+	char lexemeName[100];
+	char type[20];
+	// int size;
+	char typeofitem[20];
+	char returntype[20];
+	int noargs;
+	Nodeptr next;
+} node;
 
-void displaySymbolTable() {
-    printf("\nSymbol table\n< sno, LexemeName, token name , Type, Size, ReturnType>\n\n");
-    
-    for (int i = 0; i < symbolCount; i++) {
-        struct node cur = symbolTable[i];
-        printf(" %d\t %s\t %s\t %s\t %d\t %s\t\n",cur.sno, cur.lexemeName,cur.tokentype, cur.type, cur.size, cur.returntype);
-    }
+
+Nodeptr hashSymbol[MAX_HASH_SIZE];
+
+int getHashValue(char lexemeName[100]) {
+	int sum = 0;
+	int i = 0;
+	while(lexemeName[i]) {
+		sum+=(lexemeName[i]*i);
+		i++;
+	}
+	return (sum%MAX_HASH_SIZE);
 }
 
-
-int searchSymbolTable(char lexemeName[100], char type[20], char returntype[20]) {
-    for (int i = 0; i < symbolCount; i++) {
-        if (strcmp(lexemeName, symbolTable[i].lexemeName) == 0)
-            return i;
-    }
-    return -1;
+void displaySymbolTable(){
+	printf("\nSymbol table\n\nLexemeName\tType\tTypeofItem\tReturnType\tNumberOfArgs\n\n");
+	for(int i=0;i<MAX_HASH_SIZE;i++){
+		if(hashSymbol[i] == NULL) {
+			continue;
+		}
+		else{
+			Nodeptr cur = hashSymbol[i];
+			while(cur){
+				printf(" %s\t\t %s\t %s\t\t %s\t\t %d\n",cur->lexemeName, cur->type, cur->typeofitem, cur->returntype, cur->noargs);
+				cur = cur->next;
+			}
+		}
+	}
 }
 
-void insertSymbolTable(char lexemeName[100], char type[20], char tokentype[20],char returntype[20]) {
-    if (searchSymbolTable(lexemeName, type, returntype) == -1) {
-        struct node n;
-        strcpy(n.lexemeName, lexemeName);
-        strcpy(n.type, type);
-        strcpy(n.returntype, returntype);
-        strcpy(n.tokentype,tokentype);
-        n.sno = snum;
-        if (strcmp(type, "int") == 0)
-            n.size = 4;
-        else if (strcmp(type, "double") == 0)
-            n.size = 8;
-        else if (strcmp(type, "char") == 0)
-            n.size = 1;
-        else if (strcmp(type, "float") == 0)
-            n.size = 4;
-        else if (strcmp(type,"FUNC") == 0)
-        	n.size = 0;
-        else {
-			if(strcmp(returntype, "int") == 0)
-				n.size = 4;
-			else if(strcmp(returntype, "double") == 0)
-			n.size = 8;
-			else if(strcmp(returntype, "char") == 0)
-				n.size = 1;
-			else if(strcmp(returntype, "float") == 0)
-				n.size = 4;
-             }
-        symbolTable[symbolCount++] = n;
-        snum++;
-    }
+int searchSymbolTable(char lexemeName[100], char type[20], char typeofitem[20],char returntype[20], int noargs){
+	int index = getHashValue(lexemeName);
+	if(hashSymbol[index] == NULL){
+		return -1;
+	}
+	Nodeptr cur = hashSymbol[index];
+	int i = 0;
+	while(cur != NULL){
+		if(strcmp(lexemeName, cur->lexemeName) == 0)
+		return i;
+		cur = cur->next;
+		i++;
+	}
+	return -1;
 }
 
+void insertSymbolTable(char lexemeName[100], char type[20], char typeofitem[20],char returntype[20],int noargs){
+	if(searchSymbolTable(lexemeName, type, typeofitem, returntype, noargs) == -1){
+		Nodeptr n = (Nodeptr)malloc(sizeof(*n));
+		strcpy(n->lexemeName, lexemeName);
+		n->next = NULL;
+		strcpy(n->type, type);
+		strcpy(n->typeofitem, typeofitem);
+		
+		if(strcmp(lexemeName,"printf")==1||strcmp(lexemeName,"scanf")==1){strcpy(n->returntype,"void");}
+		else strcpy(n->returntype, returntype);
+		n->noargs=noargs;
+		int index = getHashValue(lexemeName);
+		if(hashSymbol[index] == NULL){
+			hashSymbol[index] = n;
+			return;
+		}
+		Nodeptr cur = hashSymbol[index];
+		while(cur->next != NULL)
+			cur = cur->next;
+		cur->next = n;
+	}
+}
 
 
 FILE *fptr;
@@ -79,10 +96,10 @@ char filename[50], buff[50], dbuff[50], c;
 int ind = 0;
 struct token *t;
 int row = 1, col = 1;
-int j;
+int j,count;
 int flag; // for storing the types of variables
-int arrflag = 0;
-int num = 0;
+int arrflag = 0,funflag=0;
+int num = 0,count=0;
 
 char keys[32][10] = {"auto", "break", "case", "char", 
 					   "const", "continue", "default", "do", 
@@ -177,32 +194,51 @@ struct token* getToken(FILE* fptr) {
 			for(j = 0; j<32; j++) {
 				if(strcmp(buff, keys[j])==0) {
 					strcpy(newToken->tokenName,buff);
+					strcpy(newToken->type,"keyword");
 					if(strcmp(buff, "char")==0 || strcmp(buff, "double")==0 || strcmp(buff, "float")==0 || strcmp(buff, "int")==0 || strcmp(buff, "void")==0) {
 						strcpy(dbuff, buff);
 						flag = 1;
 					}
 					memset(buff, 0, 50);
+					
 					break;
 				}
 			}
-          if(j==32) {
-   						c = fgetc(fptr);
-   						fseek(fptr, -1, SEEK_CUR);
-  			 if(flag == 1) {
-      				if(c == '(')
-         				{insertSymbolTable(buff, "FUNC", dbuff, "id");}
-      				else 
-         				{insertSymbolTable(buff, dbuff, "NULL", "id");}
-   							}
-   			memset(buff, 0, 50);
-   				if(c == ';' || c == '(') {
-     				 memset(dbuff, 0, 50);
-      					flag = 0;
-   					}
-   					j++;
+            if(j==32) {
+				c = fgetc(fptr);
+				//fseek(fptr, -1, SEEK_CUR);
+				
+				if(flag==1) {
+					if(c=='(') {
+						
+						int i=ftell(fptr);
+						c=fgetc(fptr);
+							if(c!=')'&& c!='"'){
+								count=1;
+								while(c!=')'){
+									c=fgetc(fptr);
+									if(c==',') count++;
+								}
+							}
+							else count=0;
+						insertSymbolTable(buff,"-" ,"FUNC", dbuff, count);
+						//memset(dbuff, 0, 50);
+						//strcpy(dbuff,"");
+						fseek(fptr,i,SEEK_SET);
+						}
+						
+					insertSymbolTable(buff, dbuff,"VAR", "-", 0);
+					memset(dbuff, 0, 50);
+                    fseek(fptr, -1, SEEK_CUR);
+				}
+			    strcpy(newToken->tokenName, "id");
+			    strcpy(newToken->type,"identifier");
+				memset(buff, 0, 50);
+				if(c==';' || c=='(') {
+					memset(dbuff, 0, 50);
+					flag = 0;
+				}
 			}
-
-
 		}
 		else if(isdigit(c)!=0) {
 			newToken->row = row;
@@ -214,7 +250,8 @@ struct token* getToken(FILE* fptr) {
 			}
 			fseek(fptr, -1, SEEK_CUR);
 			buff[ind]='\0';
-			strcpy(newToken->tokenName,"NUM");
+			strcpy(newToken->tokenName,"buff");
+			strcpy(newToken->type,"NUM");
 			memset(buff, 0, 50);
 		}
 		else if(findSymbol(c)==1) {
@@ -222,6 +259,7 @@ struct token* getToken(FILE* fptr) {
 			newToken->tokenName[1] = '\0';
 			newToken->row = row;
 			newToken->col = col;
+			strcpy(newToken->type,"symbol");
 			col++;
 		}
 		else if(c=='"') {
@@ -239,6 +277,7 @@ struct token* getToken(FILE* fptr) {
 			buff[ind]='\0';
 			col++;
 			strcpy(newToken->tokenName, buff);
+			strcpy(newToken->type,"string literal");
 		}
 		else {
 			newToken->row = row;
@@ -251,10 +290,12 @@ struct token* getToken(FILE* fptr) {
 					buff[ind++]=c;
 					buff[ind]='\0';
 					strcpy(newToken->tokenName,buff);
+					strcpy(newToken->type,"relop");
 				}
 				else {
 					buff[ind]='\0';
 					strcpy(newToken->tokenName,buff);
+					strcpy(newToken->type,"assignmentop");
 					fseek(fptr, -1, SEEK_CUR);
 				}
  			}
@@ -266,10 +307,12 @@ struct token* getToken(FILE* fptr) {
 					buff[ind++]=c;
 					buff[ind]='\0';
 					strcpy(newToken->tokenName,buff);
+					strcpy(newToken->type,"relop");
 				}
 				else {
 					buff[ind]='\0';
 					strcpy(newToken->tokenName,buff);
+					strcpy(newToken->type,"relop");
 					col--;
 					fseek(fptr, -1, SEEK_CUR);
 				}
@@ -284,16 +327,19 @@ struct token* getToken(FILE* fptr) {
 						buff[ind]='\0';
 						col++;
 						strcpy(newToken->tokenName,buff);
+						strcpy(newToken->type,"arop");
 					}
 					else if((buff[ind-1]=='+' && c=='+')||buff[ind-1]=='-' && c=='-') {
 						buff[ind++]=c;
 						buff[ind]='\0';
 						col++;
 						strcpy(newToken->tokenName,buff);
+						strcpy(newToken->type,"arop");
 					}
 					else {
 						buff[ind]='\0';
 						strcpy(newToken->tokenName,buff);
+						strcpy(newToken->type,"arop");
 						fseek(fptr, -1, SEEK_CUR);
 					}
 				}
@@ -302,13 +348,41 @@ struct token* getToken(FILE* fptr) {
 						buff[ind++]=c;
 						buff[ind]='\0';
 						strcpy(newToken->tokenName,buff);
+						strcpy(newToken->type,"arop");
 					}
 					else {
 						buff[ind]='\0';
 						strcpy(newToken->tokenName,buff);
+						strcpy(newToken->type,"arop");
 						col--;
 						fseek(fptr, -1, SEEK_CUR);
 					}
+				}
+			}
+			else if(c=='&'|| c=='|'||c=='!'){
+				buff[ind++]=c;
+				c = fgetc(fptr);
+				col++;
+				if(buff[ind-1]=='&'&&c=='&'|| buff[ind-1]=='|'&&c=='|'){
+					buff[ind++]=c;
+					buff[ind]='\0';
+					col++;
+					strcpy(newToken->tokenName,buff);
+					strcpy(newToken->type,"logop");
+				}
+				else if(buff[ind-1]=='!'){
+					buff[ind]='\0';
+					strcpy(newToken->tokenName,buff);
+					strcpy(newToken->type,"logop");
+					col--;
+					fseek(fptr, -1, SEEK_CUR);
+				}
+				else{
+					buff[ind]='\0';
+					strcpy(newToken->tokenName,buff);
+					strcpy(newToken->type,"bitwiseop");
+					col--;
+					fseek(fptr, -1, SEEK_CUR);
 				}
 			}
  		}
@@ -316,7 +390,8 @@ struct token* getToken(FILE* fptr) {
 }
 
 int main() {
-
+	for(int i=0; i<MAX_HASH_SIZE; i++)
+		hashSymbol[i] == NULL;
 	printf("Enter the first file to be opened: ");
 	scanf("%s", filename);
 	fptr = fopen(filename, "r");
@@ -327,7 +402,8 @@ int main() {
 	while(1) {
 		t = getToken(fptr);
 		if(!t) break;
-		printf("<%s, %d, %d>\n", t->tokenName, t->row, t->col);
+		printf("<%s, %d, %d, %s> \n", t->tokenName, t->row, t->col,t->type);
+		
 	}
 	displaySymbolTable();
 	fclose(fptr);

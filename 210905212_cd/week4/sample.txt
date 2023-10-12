@@ -1,0 +1,9 @@
+
+void func1(int a, int b);
+int func2();
+int main(){
+	int a,b,c,d;
+	char e;
+
+return 0;
+}
